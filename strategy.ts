@@ -51,6 +51,13 @@ export interface Params {
   fadeNetSol: number;
   /** Exit after this many slots held. */
   maxHold: number;
+  /** Early-weakness exit: within earlyWindow slots of opening, exit when the
+      position is worth less than cost * (1 - earlyExit). 0 = off. */
+  earlyExit: number;
+  earlyWindow: number;
+  /** Fresh inflow: net SOL over freshWindow slots at entry, at least this. */
+  minFreshSol: number;
+  freshWindow: number;
   /** Exit when the creator sells while held. */
   exitOnDevSell: boolean;
   /** Slots to wait after an exit before the same coin may be bought again. */
@@ -87,6 +94,10 @@ export const DEFAULT_PARAMS: Params = {
   fadeWindow: 30,
   fadeNetSol: 2,
   maxHold: 3000,
+  earlyExit: 0,
+  earlyWindow: 20,
+  minFreshSol: 0,
+  freshWindow: 10,
   exitOnDevSell: true,
   cooldown: 300,
   maxEntries: 1,
@@ -180,6 +191,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
     if (t.buySol > 0 && t.topBuy > p.maxTopShare * t.buySol) return false;
     if (t.entries >= p.maxEntries) return false;
     if (now - t.lastExit < p.cooldown) return false;
+    if (p.minFreshSol > 0 && flow(t, now, p.freshWindow) < p.minFreshSol) return false;
     return true;
   };
 
@@ -274,6 +286,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
         if (!exit && value < cost * (1 - p.stopLoss)) exit = true;
         if (!exit && h.peakValue >= cost * (1 + p.trailArm) && value < h.peakValue * (1 - p.trail)) exit = true;
         if (!exit && p.exitOnDevSell && t.devSold && !h.devSoldAtOpen) exit = true;
+        if (!exit && p.earlyExit > 0 && now - h.opened <= p.earlyWindow && value < cost * (1 - p.earlyExit)) exit = true;
         if (!exit && flow(t, now, p.fadeWindow) < -p.fadeNetSol) exit = true;
         if (!exit && now - h.opened > p.maxHold) exit = true;
         if (!exit) continue;
