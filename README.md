@@ -4,7 +4,7 @@
 [![rank](https://make.fun/badge/u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122/pranaistigar-sys/pumpfun-paper-bot/rank.svg)](https://make.fun/bounty/u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122)
 [![reward](https://make.fun/badge/u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122/pranaistigar-sys/pumpfun-paper-bot/reward.svg)](https://make.fun/bounty/u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122?utm_source=github&utm_medium=readme&utm_campaign=u-jackxyz72-pump-fun-replay-sprint-paper-bot-0b809122)
 
-A risk-managed paper trading bot for pump.fun bonding curves: it buys young coins only on confirmed multi-buyer inflow, sizes small, and exits fast on take-profit, stop-loss, trailing stop or a time limit. Built for the make.fun "Pump.fun Replay Sprint — Paper Bot, Real Ranking" bounty.
+A risk-managed paper trading bot for pump.fun bonding curves: it buys young coins only on confirmed, widely-dispersed multi-buyer inflow, takes profit fast, and rides coins approaching curve completion. Built for the make.fun "Pump.fun Replay Sprint — Paper Bot, Real Ranking" bounty.
 
 ## Run it
 
