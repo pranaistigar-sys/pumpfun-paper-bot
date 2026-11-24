@@ -15,6 +15,11 @@
 // completion ride at rq >= 50 (58% of those coins complete at exactly 14.7x
 // create price). v1 dev -0.045, v2 dev -0.725, v3 dev +0.733 SOL.
 //
+// v4.1 — same v4 decisions, cheaper per-batch work only: the pending-sell
+// scan is hoisted out of the held loop (one pass builds pending counts +
+// pending-sell set) and the marks map is built only when something is held.
+// Verified by identical action_log_sha256 to v4 (see grade-v4.1.json).
+//
 // Deterministic by construction: no clock, no randomness, no environment reads;
 // iteration only over insertion-ordered maps fed by the batch stream.
 
@@ -175,9 +180,18 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
         }
       }
 
-      const marks = new Map(batch.marks.map((m) => [m.mint, m] as const));
+      // Speed (v4.1, behavior-identical): marks are only read for held mints
+      // (exits), so skip building the map on batches with nothing held.
+      const marks = held.size > 0 ? new Map(batch.marks.map((m) => [m.mint, m] as const)) : null;
       const pendingByMint = new Map<Pubkey, number>();
-      for (const po of state.pending.values()) pendingByMint.set(po.order.mint, (pendingByMint.get(po.order.mint) ?? 0) + 1);
+      // Speed (v4.1, behavior-identical): one pass over pending builds both the
+      // per-mint counts and the set of mints with a sell pending, instead of
+      // re-scanning all pending orders for every held mint (was O(held x pending)).
+      const pendingSell = new Set<Pubkey>();
+      for (const po of state.pending.values()) {
+        pendingByMint.set(po.order.mint, (pendingByMint.get(po.order.mint) ?? 0) + 1);
+        if (po.order.side === 'sell') pendingSell.add(po.order.mint);
+      }
 
       const orders: OrderInput[] = [];
       const cap = state.hello.caps.max_orders_per_batch;
@@ -198,7 +212,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
         }
         h.filled = true;
         if (curve === undefined || curve.complete) continue;
-        const mk = marks.get(mint);
+        const mk = marks?.get(mint);
         const vq = mk ? Number(mk.virtual_quote_reserves) : Number(curve.virtual_quote_reserves);
         const vt = mk ? Number(mk.virtual_token_reserves) : Number(curve.virtual_token_reserves);
         const tokens = Number(pos.token_amount);
@@ -213,11 +227,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
         if (!exit && p.exitOnDevSell && t.devSold) exit = true;
         if (!exit && now - h.opened > hold) exit = true;
         if (!exit) continue;
-        let sellPending = false;
-        for (const po of state.pending.values()) {
-          if (po.order.mint === mint && po.order.side === 'sell') sellPending = true;
-        }
-        if (sellPending) continue;
+        if (pendingSell.has(mint)) continue;
         if (orders.length >= cap) break;
         orders.push({ side: 'sell', mint, token_amount: pos.token_amount, max_slippage_bps: 10_000 });
       }
