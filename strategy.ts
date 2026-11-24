@@ -4,12 +4,16 @@
 // pumps in its first slots and then bleeds back toward its create price — buying
 // established coins loses, and buying every launch loses. The only entries with
 // a positive conditional base rate are young coins that (a) already pumped
-// 15%+ off the floor, (b) are still held near their early high, (c) drew many
-// distinct buyers with real net inflow, and (d) whose creator has not sold.
-// Even there the edge is thin, so the bot sizes small, pyramids only while the
-// signal holds, cuts losers at -12%, and never caps the upside with a fixed
-// take-profit: once a winner is +20% a 20% trailing stop rides it, including
-// all the way to curve completion.
+// 50–75% off the floor (less and they are dead, more and the move is spent),
+// (b) drew 30+ distinct buyers with 6+ SOL of net inflow, (c) are still held
+// near their early high, and (d) whose creator has not sold. Even there the
+// edge is thin, so the bot sizes small (0.05 SOL first buy, 0.20 max), pyramids
+// only while the signal holds, cuts losers at -12%, and never caps the upside
+// with a fixed take-profit: once a winner is +20% a 20% trailing stop rides it,
+// including all the way to curve completion. Tuned on the dev window by local
+// grading across the parameter grid, preferring the flat middle of the good
+// region over its single best cell: dev net PnL -0.045 SOL, 30 coins,
+// max drawdown 0.5%.
 //
 // Deterministic by construction: no clock, no randomness, no environment reads;
 // iteration only over insertion-ordered maps fed by the batch stream.
@@ -79,10 +83,10 @@ export interface Params {
 export const DEFAULT_PARAMS: Params = {
   entryMinAge: 2,
   entryMaxAge: 40,
-  minBuyers: 8,
-  minNetSol: 1.0,
-  minRunup: 1.15,
-  maxRunup: 2.5,
+  minBuyers: 30,
+  minNetSol: 6.0,
+  minRunup: 1.5,
+  maxRunup: 1.75,
   nearHigh: 0.95,
   maxTopShare: 0.5,
   minRqSol: 1,
