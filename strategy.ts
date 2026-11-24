@@ -58,6 +58,10 @@ export interface Params {
   /** Fresh inflow: net SOL over freshWindow slots at entry, at least this. */
   minFreshSol: number;
   freshWindow: number;
+  /** Price must still be rising: price now over the price riseWindow slots
+      ago, at least this much. 0 = off. */
+  minRise: number;
+  riseWindow: number;
   /** Exit when the creator sells while held. */
   exitOnDevSell: boolean;
   /** Slots to wait after an exit before the same coin may be bought again. */
@@ -98,6 +102,8 @@ export const DEFAULT_PARAMS: Params = {
   earlyWindow: 20,
   minFreshSol: 0,
   freshWindow: 10,
+  minRise: 0,
+  riseWindow: 5,
   exitOnDevSell: true,
   cooldown: 300,
   maxEntries: 1,
@@ -125,6 +131,8 @@ interface Tape {
   lastExit: number;
   /** Recent trades for the fade-flow check: [slot, signed SOL]. */
   recent: Array<{ slot: number; sol: number }>;
+  /** Price history (slot, price) for the rise check, pruned to ~40 slots. */
+  hist: Array<{ slot: number; price: number }>;
 }
 
 interface Held {
@@ -158,7 +166,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
       t = {
         created: null, creator: null, createPrice: 0, high: 0,
         netSol: 0, buySol: 0, buyers: new Set(), topBuy: 0,
-        devSold: false, entries: 0, lastExit: -1e12, recent: [],
+        devSold: false, entries: 0, lastExit: -1e12, recent: [], hist: [],
       };
       tapes.set(mint, t);
     }
@@ -192,6 +200,13 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
     if (t.entries >= p.maxEntries) return false;
     if (now - t.lastExit < p.cooldown) return false;
     if (p.minFreshSol > 0 && flow(t, now, p.freshWindow) < p.minFreshSol) return false;
+    if (p.minRise > 0) {
+      let old = t.createPrice;
+      for (let i = t.hist.length - 1; i >= 0; i--) {
+        if (t.hist[i]!.slot <= now - p.riseWindow) { old = t.hist[i]!.price; break; }
+      }
+      if (old <= 0 || price < old * (1 + p.minRise)) return false;
+    }
     return true;
   };
 
@@ -234,6 +249,7 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
           const px = priceOf(BigInt(e.virtual_quote_reserves), BigInt(e.virtual_token_reserves));
           if (px > t.high) t.high = px;
           t.recent.push({ slot: e.slot, sol: signed });
+          t.hist.push({ slot: e.slot, price: px });
           traded.add(e.mint);
         } else {
           // CompleteEvent: the replay closes the position itself.
@@ -248,6 +264,9 @@ export function createStrategy(p: Params = DEFAULT_PARAMS): Bot {
         let cut = 0;
         while (cut < t.recent.length && t.recent[cut]!.slot <= now - Math.max(p.fadeWindow, 60)) cut++;
         if (cut > 0) t.recent.splice(0, cut);
+        let hcut = 0;
+        while (hcut < t.hist.length && t.hist[hcut]!.slot <= now - Math.max(p.riseWindow, 10) - 5) hcut++;
+        if (hcut > 0) t.hist.splice(0, hcut);
       }
 
       const marks = new Map(batch.marks.map((m) => [m.mint, m] as const));
